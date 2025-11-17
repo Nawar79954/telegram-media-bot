@@ -67,47 +67,12 @@ import yt_dlp
 from PIL import Image
 import psutil
 
-# ========== Configuration with Better Token Handling ==========
-def get_bot_token():
-    """Get bot token from environment with fallback and validation"""
-    
-    # Try multiple environment variable names
-    token = (os.environ.get('BOT_TOKEN') or 
-             os.environ.get('TELEGRAM_BOT_TOKEN') or 
-             os.environ.get('TELEGRAM_TOKEN') or
-             os.environ.get('BOT_API_TOKEN'))
-    
-    if token:
-        print("✅ Bot token found in environment variables")
-        return token
-    
-    # Check if we're in Railway environment
-    if 'RAILWAY_ENVIRONMENT' in os.environ:
-        print("❌ ERROR: Bot token not found in Railway environment variables!")
-        print("📝 Please add BOT_TOKEN to your Railway environment variables")
-        sys.exit(1)
-    
-    # For local development, try to read from file
-    try:
-        if os.path.exists('bot_token.txt'):
-            with open('bot_token.txt', 'r') as f:
-                token = f.read().strip()
-                if token:
-                    print("✅ Bot token loaded from bot_token.txt")
-                    return token
-    except:
-        pass
-    
-    print("❌ No bot token found!")
-    print("💡 Please set BOT_TOKEN environment variable or create bot_token.txt file")
-    sys.exit(1)
-
-# Get bot token
-API_TOKEN = get_bot_token()
-
-# Validate token format
-if not API_TOKEN or len(API_TOKEN) < 20:
-    print("❌ Invalid bot token format!")
+# ========== Configuration ==========
+# Get bot token from environment
+API_TOKEN = os.environ.get('BOT_TOKEN')
+if not API_TOKEN:
+    print("❌ ERROR: BOT_TOKEN not found in environment variables!")
+    print("💡 Please add BOT_TOKEN to your Railway environment variables")
     sys.exit(1)
 
 print(f"✅ Bot token loaded successfully (length: {len(API_TOKEN)})")
@@ -751,7 +716,7 @@ def handle_status(message):
 @bot.message_handler(func=lambda message: message.text == 'ℹ️ Help')
 def handle_help(message):
     help_text = """
-🛠️ <b>Enhanced Media Bot - Help Guide</b>
+🛠️ <b>MasTerDCS</b>
 
 ⚡ <b>Download Options:</b>
 • <b>Download Video</b> - High quality (720p) with retry system
