@@ -556,10 +556,6 @@ def send_welcome(message):
 🎵 Audio Download - Extract audio from videos
 🔍 Search Song - Find music by lyrics
 
-🔧 **System Status:**
-Deployment: {cloud_status}
-FFmpeg: {ffmpeg_status}
-Auto Cleanup: ✅ Active
 
 📋 **Supported Platforms:**
 YouTube, Instagram, Facebook, TikTok, Twitter,
@@ -1147,4 +1143,5 @@ if __name__ == "__main__":
         if final_cleanup > 0:
             print(f"🧹 Final cleanup: {final_cleanup} files removed")
         print("✅ Bot stopped successfully")
+
 
