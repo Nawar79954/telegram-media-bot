@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python bot.py"
+
+[env]
+BOT_TOKEN = "8526634581:AAHBOfZw1UlBwrao1Wf2nY4TRGCGpKnce4g"
