@@ -66,6 +66,9 @@ API_TOKEN = os.environ.get('BOT_TOKEN', '8526634581:AAHBOfZw1UlBwrao1Wf2nY4TRGCG
 
 # إعداد المسار المؤقت
 TEMP_DIR = setup_cloud_environment()
+# ========== تعريف bot هنا ==========
+bot = telebot.TeleBot(API_TOKEN)
+
 
 # التحقق إذا كنا في السحابة
 CLOUD_DEPLOYMENT = 'RAILWAY_ENVIRONMENT' in os.environ
@@ -543,7 +546,7 @@ def send_welcome(message):
     cloud_status = "🌐 Railway Cloud" if CLOUD_DEPLOYMENT else "💻 Local"
     
     welcome_text = f"""
- **Welcome to Master DCS Pro!**
+🎉 **Welcome to MediaBot Pro!**
 
 ⚡ **Available Features:**
 
@@ -553,6 +556,10 @@ def send_welcome(message):
 🎵 Audio Download - Extract audio from videos
 🔍 Search Song - Find music by lyrics
 
+🔧 **System Status:**
+Deployment: {cloud_status}
+FFmpeg: {ffmpeg_status}
+Auto Cleanup: ✅ Active
 
 📋 **Supported Platforms:**
 YouTube, Instagram, Facebook, TikTok, Twitter,
@@ -1139,5 +1146,4 @@ if __name__ == "__main__":
         final_cleanup = auto_cleanup.cleanup_temp_files()
         if final_cleanup > 0:
             print(f"🧹 Final cleanup: {final_cleanup} files removed")
-
         print("✅ Bot stopped successfully")
