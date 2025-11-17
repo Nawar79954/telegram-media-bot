@@ -546,9 +546,9 @@ def send_welcome(message):
     cloud_status = "🌐 Railway Cloud" if CLOUD_DEPLOYMENT else "💻 Local"
     
     welcome_text = f"""
-🎉 **Welcome to MediaBot Pro!**
+ **Welcome to MasTerDCS **
 
-⚡ **Available Features:**
+⚡ **We Can Help you with:**
 
 🔄 Convert Formats - Image/Video conversion tools
 📥 Normal Download - High quality (720p) 
@@ -1147,3 +1147,4 @@ if __name__ == "__main__":
         if final_cleanup > 0:
             print(f"🧹 Final cleanup: {final_cleanup} files removed")
         print("✅ Bot stopped successfully")
+
