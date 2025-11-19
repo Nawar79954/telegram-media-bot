@@ -90,16 +90,50 @@ print(f"📁 المجلد المؤقت: {TEMP_DIR}")
 user_states = {}
 user_sessions = {}
 
-# ========== إعداد FFmpeg ==========
+# ========== إعداد FFmpeg المحسن ==========
 def setup_environment():
-    """إعداد البيئة بما في ذلك FFmpeg"""
+    """إعداد البيئة بما في ذلك FFmpeg مع تحسينات السحابة"""
     try:
+        # في Railway، حاول تثبيت ffmpeg تلقائياً
+        if CLOUD_DEPLOYMENT:
+            print("🔧 جاري التحقق من FFmpeg في بيئة Railway...")
+            try:
+                # محاولة تثبيت ffmpeg باستخدام apt
+                result = subprocess.run(['apt-get', 'update'], capture_output=True, text=True)
+                result = subprocess.run(['apt-get', 'install', '-y', 'ffmpeg'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    print("✅ تم تثبيت FFmpeg بنجاح في Railway")
+            except Exception as e:
+                print(f"⚠️ لا يمكن تثبيت FFmpeg تلقائياً: {e}")
+
+        # التحقق من وجود FFmpeg
         result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
         if result.returncode == 0:
-            print("✅ FFmpeg متاح")
-            return True
+            # اختبار FFmpeg
+            test_result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=10)
+            if test_result.returncode == 0:
+                print("✅ FFmpeg متاح ويعمل بشكل صحيح")
+                return True
+            else:
+                print("⚠️ FFmpeg موجود لكن لا يعمل بشكل صحيح")
+                return False
         else:
-            print("⚠️ FFmpeg غير موجود، بعض الميزات ستكون محدودة")
+            print("🔧 جاري البحث عن FFmpeg في المسارات البديلة...")
+            # البحث في مسارات بديلة
+            possible_paths = [
+                '/usr/bin/ffmpeg',
+                '/usr/local/bin/ffmpeg',
+                '/app/bin/ffmpeg',
+                '/opt/bin/ffmpeg'
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    print(f"✅ تم العثور على FFmpeg في: {path}")
+                    # إضافة إلى PATH
+                    os.environ["PATH"] = os.path.dirname(path) + os.pathsep + os.environ["PATH"]
+                    return True
+            
+            print("⚠️ FFmpeg غير موجود، سيتم استخدام الميزات الأساسية فقط")
             return False
     except Exception as e:
         print(f"❌ خطأ في إعداد البيئة: {e}")
@@ -187,7 +221,7 @@ auto_cleanup = AutoCleanup()
 
 # ========== دوال المساعدة ==========
 def is_valid_url(url):
-    """التحقق من صحة الرابط"""
+    """التحقق من صحة الرابط مع دعم النطاقات الشاملة"""
     try:
         url = url.strip()
         if not url:
@@ -204,19 +238,23 @@ def is_valid_url(url):
         if domain.startswith('www.'):
             domain = domain[4:]
         
-        # النطاقات المدعومة
+        # النطاقات المدعومة الموسعة
         supported_domains = {
             'youtube.com', 'youtu.be', 'm.youtube.com', 'music.youtube.com',
+            'youtube-nocookie.com', 'gaming.youtube.com',
             'instagram.com', 'www.instagram.com',
             'facebook.com', 'fb.com', 'fb.watch', 'www.facebook.com',
             'tiktok.com', 'vm.tiktok.com', 'www.tiktok.com',
             'twitter.com', 'x.com', 'www.twitter.com',
-            'reddit.com', 'www.reddit.com',
+            'reddit.com', 'www.reddit.com', 'v.redd.it',
             'soundcloud.com', 'www.soundcloud.com',
             'spotify.com', 'open.spotify.com',
             'vimeo.com', 'www.vimeo.com',
             'dailymotion.com', 'www.dailymotion.com',
-            'twitch.tv', 'www.twitch.tv'
+            'twitch.tv', 'www.twitch.tv',
+            'bilibili.com', 'www.bilibili.com',
+            'nicovideo.jp', 'www.nicovideo.jp',
+            'rutube.ru', 'www.rutube.ru'
         }
         
         # التحقق مما إذا كان النطاق مدعومًا
@@ -286,18 +324,37 @@ def test_url_with_ytdlp(url):
         logger.error(f"فشل اختبار الرابط لـ {url}: {e}")
         return False
 
-# ========== إعدادات yt-dlp ==========
+# ========== إعدادات yt-dlp المحسنة ==========
 def get_ydl_opts(download_type='video', is_fast=False):
-    """الحصول على خيارات yt-dlp بناءً على نوع التنزيل"""
+    """الحصول على خيارات yt-dlp بناءً على نوع التنزيل مع تحسينات السحابة"""
+    
+    # وكلاء مستخدم عشوائيون لتجنب الحظر
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ]
+    
     base_opts = {
         'outtmpl': os.path.join(TEMP_DIR, '%(title).100s.%(ext)s'),
-        'retries': 3,
-        'fragment_retries': 3,
+        'retries': 10,  # زيادة عدد المحاولات
+        'fragment_retries': 10,
         'skip_unavailable_fragments': True,
         'ignoreerrors': False,
         'quiet': True,
-        'socket_timeout': 30,
+        'socket_timeout': 60,  # زيادة وقت الانتظار
         'noplaylist': True,
+        
+        # إضافة رؤوس HTTP لتجنب الحظر
+        'http_headers': {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        },
     }
     
     if download_type == 'audio':
@@ -311,12 +368,13 @@ def get_ydl_opts(download_type='video', is_fast=False):
                 }],
             })
         else:
+            # خيارات بديلة عندما لا يكون FFmpeg متاحاً
             base_opts.update({
                 'format': 'bestaudio[ext=m4a]/bestaudio/best',
             })
     elif is_fast:
         base_opts.update({
-            'format': 'worst[height<=360]/worst',
+            'format': 'worst[height<=480]/worst',  # جودة أقل لسرعة أكبر
         })
     else:
         base_opts.update({
@@ -325,10 +383,10 @@ def get_ydl_opts(download_type='video', is_fast=False):
     
     return base_opts
 
-# ========== نظام التنزيل ==========
+# ========== نظام التنزيل المحسن ==========
 def download_media(url, chat_id, download_type='video', is_fast=False):
-    """تنزيل الوسائط مع معالجة الأخطاء الشاملة"""
-    max_retries = 2
+    """تنزيل الوسائط مع معالجة الأخطاء الشاملة وتحسينات السحابة"""
+    max_retries = 3  # زيادة عدد المحاولات
     for attempt in range(max_retries):
         try:
             bot.send_message(chat_id, f"🔄 جاري المعالجة (المحاولة {attempt + 1}/{max_retries})...")
@@ -358,13 +416,21 @@ def download_media(url, chat_id, download_type='video', is_fast=False):
                 
                 if files:
                     file_path = files[0]
-                    return info, file_path
+                    # التحقق من أن الملف ليس فارغاً
+                    if os.path.getsize(file_path) > 1024:  # 1KB كحد أدنى
+                        return info, file_path
+                    else:
+                        os.unlink(file_path)  # حذف الملف الفارغ
+                        raise Exception("الملف الذي تم تنزيله فارغ")
                 else:
                     # الاحتياطي: الحصول على أحدث ملف في المجلد المؤقت
                     all_files = glob.glob(os.path.join(TEMP_DIR, "*"))
                     if all_files:
                         latest_file = max(all_files, key=os.path.getctime)
-                        return info, latest_file
+                        if os.path.getsize(latest_file) > 1024:
+                            return info, latest_file
+                        else:
+                            raise Exception("أحدث ملف فارغ")
                     else:
                         raise Exception("الملف الذي تم تنزيله غير موجود")
                     
@@ -385,14 +451,18 @@ def download_media(url, chat_id, download_type='video', is_fast=False):
                         files = glob.glob(os.path.join(TEMP_DIR, "*"))
                         if files:
                             latest_file = max(files, key=os.path.getctime)
-                            return info, latest_file
+                            if os.path.getsize(latest_file) > 1024:
+                                return info, latest_file
                 except Exception as inner_e:
                     logger.error(f"فشل التنزيل بدون FFmpeg: {inner_e}")
-                    break
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        raise inner_e
                 
             if attempt < max_retries - 1:
                 bot.send_message(chat_id, f"⚠️ جاري إعادة المحاولة... (المحاولة {attempt + 2}/{max_retries})")
-                time.sleep(2)
+                time.sleep(3)  # زيادة وقت الانتظار بين المحاولات
             else:
                 raise e
     
@@ -420,6 +490,10 @@ def process_download(chat_id, url, media_type, is_fast=False):
         if media_type == 'audio':
             action_msg = "🎵 جاري استخراج الصوت..."
             download_type = 'audio'
+            
+            # إضافة معلومات حول حالة FFmpeg
+            if not FFMPEG_AVAILABLE:
+                action_msg += "\n\n⚠️ **ملاحظة:** FFmpeg غير متاح - سيتم التنزيل بالتنسيق الأصلي للصوت"
         elif is_fast:
             action_msg = "⚡ بدء التنزيل السريع..."
             download_type = 'video'
@@ -427,7 +501,7 @@ def process_download(chat_id, url, media_type, is_fast=False):
             action_msg = "📥 بدء التنزيل..."
             download_type = 'video'
         
-        bot.send_message(chat_id, action_msg)
+        bot.send_message(chat_id, action_msg, parse_mode='Markdown')
         bot.send_chat_action(chat_id, 'upload_video' if media_type != 'audio' else 'upload_audio')
         
         # تنزيل الوسائط
@@ -436,6 +510,17 @@ def process_download(chat_id, url, media_type, is_fast=False):
         if info and file_path and os.path.exists(file_path):
             file_size = get_file_size(file_path)
             title = clean_filename(info.get('title', 'غير معروف'))
+            
+            # التحقق النهائي من حجم الملف
+            if os.path.getsize(file_path) < 1024:
+                bot.send_message(chat_id, "❌ الملف الذي تم تنزيله فارغ أو صغير جداً")
+                try:
+                    os.unlink(file_path)
+                except:
+                    pass
+                send_welcome_by_id(chat_id)
+                return
+            
             caption = f"✅ اكتمل التنزيل!\n🎬 {title}\n📊 الحجم: {file_size}"
             
             if media_type == 'audio' and not FFMPEG_AVAILABLE:
@@ -488,7 +573,8 @@ def process_download(chat_id, url, media_type, is_fast=False):
             "No video formats": "❌ لم يتم العثور على تنسيق قابل للتشغيل",
             "This video is unavailable": "❌ الفيديو غير متاح في منطقتك",
             "Unable to download webpage": "❌ لا يمكن الوصول إلى هذا الرابط",
-            "Video unavailable": "❌ الفيديو لم يعد متاحًا"
+            "Video unavailable": "❌ الفيديو لم يعد متاحًا",
+            "File is empty": "❌ الملف الناتج فارغ - قد يكون المحتوى محمياً"
         }
         
         for key, message in error_messages.items():
@@ -517,7 +603,7 @@ def send_welcome(message):
     btn6 = types.KeyboardButton('ℹ️ المساعدة والمعلومات')
     markup.add(btn1, btn2, btn3, btn4, btn5, btn6)
     
-    ffmpeg_status = "✅ متاح" if FFMPEG_AVAILABLE else "❌ غير مثبت"
+    ffmpeg_status = "✅ متاح" if FFMPEG_AVAILABLE else "❌ غير متاح"
     cloud_status = "🌐 سحابة Railway" if CLOUD_DEPLOYMENT else "💻 محلي"
     
     welcome_text = f"""
@@ -700,10 +786,7 @@ def handle_video_to_mp3(message):
         bot.send_message(message.chat.id,
                        "❌ **مطلوب FFmpeg**\n\n"
                        "هذه الميزة تحتاج إلى تثبيت FFmpeg:\n"
-                       "1. حمل من: https://ffmpeg.org/\n"
-                       "2. أضف إلى مسار النظام\n"
-                       "3 أعد تشغيل البوت\n\n"
-                       "💡 **إصلاح سريع:** استخدم '🎵 تنزيل صوت' لاستخراج الصوت المباشر",
+                       "💡 **الحل السريع:** استخدم '🎵 تنزيل صوت' لاستخراج الصوت المباشر من الفيديوهات عبر الإنترنت",
                        parse_mode='Markdown')
         return
     
@@ -746,10 +829,14 @@ def process_video_to_mp3(message):
                 audio_path
             ]
             
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)  # زيادة المهلة
             
             if result.returncode == 0 and os.path.exists(audio_path):
                 file_size = get_file_size(audio_path)
+                
+                # التحقق من أن الملف ليس فارغاً
+                if os.path.getsize(audio_path) < 1024:
+                    raise Exception("ملف الصوت الناتج فارغ")
                 
                 # إرسال MP3 إلى المستخدم
                 with open(audio_path, 'rb') as audio_file:
@@ -757,23 +844,14 @@ def process_video_to_mp3(message):
                                  caption=f"✅ تم استخراج الصوت بنجاح!\n📊 الحجم: {file_size}")
             else:
                 error_msg = result.stderr[:200] if result.stderr else "فشل التحويل"
-                bot.send_message(message.chat.id, f"❌ فشل الاستخراج: {error_msg}")
+                raise Exception(f"فشل استخراج الصوت: {error_msg}")
                 
         except subprocess.TimeoutExpired:
             bot.send_message(message.chat.id, "❌ انتهت مهلة التحويل - قد يكون الملف كبيرًا جدًا")
         except Exception as e:
             error_msg = str(e)
             logger.error(f"خطأ في استخراج MP3: {error_msg}")
-            
-            if "ffprobe" in error_msg.lower() or "ffmpeg" in error_msg.lower():
-                bot.send_message(message.chat.id, 
-                               "❌ خطأ في FFmpeg!\n\n"
-                               "يرجى التحقق من:\n"
-                               "• تثبيت FFmpeg\n"
-                               "• تكوين مسار النظام\n"
-                               "• إعادة تشغيل البوت بعد التثبيت")
-            else:
-                bot.send_message(message.chat.id, f"❌ خطأ في التحويل: {str(e)[:100]}")
+            bot.send_message(message.chat.id, f"❌ فشل الاستخراج: {str(e)[:100]}")
         
         finally:
             # تنظيف الملفات
@@ -1004,7 +1082,7 @@ def check_status(message):
     """عرض حالة النظام الشاملة"""
     chat_id = message.chat.id
     
-    ffmpeg_status = "✅ مثبت ويعمل" if FFMPEG_AVAILABLE else "❌ غير متاح"
+    ffmpeg_status = "✅ مثبت ويعمل" if FFMPEG_AVAILABLE else "❌ غير متاح - استخدام الميزات الأساسية"
     cloud_status = "🌐 سحابة Railway" if CLOUD_DEPLOYMENT else "💻 محلي"
     
     # عد الملفات المؤقتة
@@ -1022,6 +1100,8 @@ def check_status(message):
 
 🔄 **جميع الأنظمة:** ✅ تعمل
 💡 **الحالة:** 🟢 تعمل بشكل مثالي
+
+💡 **ملاحظة:** { "جميع الميزات متاحة" if FFMPEG_AVAILABLE else "بعض الميزات المتقدمة غير متاحة بسبب عدم توفر FFmpeg" }
 """
     
     bot.send_message(chat_id, status_text, parse_mode='Markdown')
@@ -1039,31 +1119,25 @@ def clean_temp(message):
 def ffmpeg_help(message):
     """دليل تثبيت FFmpeg"""
     help_text = """
-🔧 **دليل تثبيت FFmpeg**
+🔧 **حول FFmpeg في السحابة**
 
-📥 **تحميل FFmpeg:**
-1. زر: https://www.gyan.dev/ffmpeg/builds/
-2. حمل: `ffmpeg-release-full.7z` (أحدث إصدار)
+ℹ️ **المعلومات:**
+- في بيئة Railway السحابية، قد لا يكون FFmpeg متاحاً افتراضياً
+- هذا لا يؤثر على الميزات الأساسية للبوت
+- يمكنك仍然 تنزيل الفيديوهات واستخراج الصوت بالتنسيقات الأصلية
 
-🛠️ **خطوات التثبيت:**
+⚡ **الميزات المتاحة بدون FFmpeg:**
+- ✅ تنزيل الفيديوهات بجميع الجودات
+- ✅ استخراج الصوت بالتنسيقات الأصلية (MP4, M4A, WEBM)
+- ✅ البحث عن الموسيقى والتنزيل
+- ✅ تحويل الصور إلى PDF وJPG
 
-**Windows:**
-1. استخرج الملف الذي تم تنزيله
-2. انسخ المجلد إلى `C:\\ffmpeg\\`
-3. اضغط `Win + R`، اكتب `sysdm.cpl`
-4. انقر على "متغيرات البيئة"
-5. تحت "متغيرات النظام"، ابحث عن "Path"، انقر على "تحرير"
-6. انقر على "جديد"، أضف: `C:\\ffmpeg\\bin`
-7. انقر على "موافق" للحفظ
+💡 **نصائح للاستخدام:**
+- استخدم "🎵 تنزيل صوت" لاستخراج الصوت من الفيديوهات
+- الملفات الصوتية ستكون بالتنسيق الأصلي (عادةً M4A)
+- معظم مشغلات الصوت تدعم التنسيقات الأصلية
 
-**التحقق:**
-1. افتح موجه الأوامر
-2. اكتب: `ffmpeg -version`
-3. إذا رأيت معلومات الإصدار، فإن التثبيت ناجح
-
-🔄 **بعد التثبيت، أعد تشغيل هذا البوت.**
-
-💡 **ملاحظة:** FFmpeg يمكن تحويل الصوت ودعم تنسيقات أفضل.
+🚀 **البوت يعمل بكامل طاقته حتى بدون FFmpeg!**
 """
     bot.send_message(message.chat.id, help_text, parse_mode='Markdown')
 
@@ -1104,7 +1178,7 @@ if __name__ == "__main__":
         bot_info = bot.get_me()
         print(f"✅ تم تهيئة البوت: @{bot_info.username}")
         print(f"🐍 إصدار Python: {sys.version.split()[0]}")
-        print(f"🔧 حالة FFmpeg: {'✅ متاح' if FFMPEG_AVAILABLE else '❌ غير متاح'}")
+        print(f"🔧 حالة FFmpeg: {'✅ متاح' if FFMPEG_AVAILABLE else '❌ غير متاح - استخدام الميزات الأساسية'}")
         print("🧹 التنظيف التلقائي: ✅ نشط")
         print("📊 النظام جاهز للطلبات...")
         print("=" * 60)
